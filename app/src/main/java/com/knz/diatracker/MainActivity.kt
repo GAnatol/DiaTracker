@@ -1,11 +1,9 @@
 package com.knz.diatracker
 
-import android.R
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -23,16 +21,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Bloodtype
+import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.EmojiFoodBeverage
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.BottomAppBar
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sports
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,7 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,12 +61,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DiaTrackerTheme {
-/*                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }*/
+
             }
         }
     }
@@ -134,18 +132,39 @@ fun GlucoseRecordScreen() {
     ) {
         Spacer(Modifier.height(10.dp))
 
-        Text(
-            "Сахар",
-            fontSize = 20.sp
-        )
+        Row {
+            Icon(
+                imageVector = Icons.Default.Bloodtype,
+                "123",
+                modifier = Modifier.padding(start = 10.dp)
+            )
 
+            Spacer(Modifier.weight(1f))
+
+            Text(
+                "Сахар",
+                modifier = Modifier.weight(1f),
+                fontSize = 20.sp, textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Icon(
+                imageVector = Icons.Default.Replay,
+                "123",
+                modifier = Modifier.padding(end = 10.dp)
+            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color.Black))
         Spacer(Modifier.height(10.dp))
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
-                modifier = Modifier.size(60.dp),
+                modifier = Modifier.size(50.dp),
                 shape = RoundedCornerShape(60.dp),
                 color = Color(0xFF4c5e8b),
                 shadowElevation = 2.dp
@@ -153,15 +172,14 @@ fun GlucoseRecordScreen() {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) { Text(
-                    text = "",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bloodtype, contentDescription = "blood"
+                    )
                 }
             }
             Surface(
-                modifier = Modifier.size(60.dp),
+                modifier = Modifier.size(50.dp),
                 shape = RoundedCornerShape(60.dp),
                 color = Color(0xFF4c5e8b),
                 shadowElevation = 2.dp
@@ -169,16 +187,15 @@ fun GlucoseRecordScreen() {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) { Text(
-                    text = "",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiFoodBeverage, contentDescription = "food"
+                    )
                 }
             }
 
             Surface(
-                modifier = Modifier.size(60.dp),
+                modifier = Modifier.size(50.dp),
                 shape = RoundedCornerShape(100.dp),
                 color = Color(0xFF4c5e8b),
                 shadowElevation = 2.dp
@@ -186,16 +203,15 @@ fun GlucoseRecordScreen() {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) { Text(
-                    text = "",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Comment, contentDescription = "comment"
+                    )
                 }
             }
 
             Surface(
-                modifier = Modifier.size(60.dp),
+                modifier = Modifier.size(50.dp),
                 shape = RoundedCornerShape(100.dp),
                 color = Color(0xFF4c5e8b),
                 shadowElevation = 2.dp
@@ -203,16 +219,15 @@ fun GlucoseRecordScreen() {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) { Text(
-                    text = "",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DirectionsWalk, contentDescription = "comment"
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(15.dp))
 
         Text(
             "27 октября, 2026 г., 18:38",
@@ -243,20 +258,20 @@ fun GlucoseRecordScreen() {
                 "до еды",
                 modifier = Modifier
                     .background(
-                        color = Color.Gray,
+                        color = Color(0xFFDCDCDC),
                         shape = RoundedCornerShape(10.dp)
                     ).padding(3.dp),
-                color = Color.White
+                color = Color(0xFF808080)
             )
             Spacer(Modifier.width(20.dp))
             Text(
                 "после еды",
                 modifier = Modifier
                     .background(
-                        color = Color.Gray,
+                        color = Color(0xFFDCDCDC),
                         shape = RoundedCornerShape(10.dp)
                     ).padding(3.dp),
-                color = Color.White
+                color = Color(0xFF808080)
             )
         }
 
@@ -335,17 +350,25 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 }
 
                 NavigationBar(
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier.align(Alignment.BottomCenter).height(80.dp)
                 ) {
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Home, contentDescription = "Главная") },
-                        label = { Text("Дневник") },
                         selected = true,
                         onClick = {  }
                     )
                     NavigationBarItem(
+                        icon = { Icon(Icons.Default.BarChart, contentDescription = "healing") },
+                        selected = false,
+                        onClick = {  }
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Sports, contentDescription = "Настройки") },
+                        selected = false,
+                        onClick = {  }
+                    )
+                    NavigationBarItem(
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Настройки") },
-                        label = { Text("Настройки") },
                         selected = false,
                         onClick = {  }
                     )
@@ -355,10 +378,96 @@ fun MainScreen(modifier: Modifier = Modifier) {
     }
 }
 
+
+@Composable
+fun StatsScreen(){
+    Column {
+        Column(
+            modifier = Modifier.background(Color.Gray).padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.height(30.dp))
+
+            Row{
+                Text(
+                    "Статистика",
+                    modifier = Modifier,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start
+                )
+                Spacer(Modifier.weight(1f))
+
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Поделиться",
+                    tint = Color.White
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Row (
+                modifier = Modifier.border(
+                    shape = RoundedCornerShape(10.dp),
+                    width = 1.dp,
+                    color = Color.Black
+                ).padding(10.dp)
+            ) {
+                Text(
+                    "День",
+                    fontSize = 18.sp
+                    )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Неделя",
+                    fontSize = 18.sp
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Месяц",
+                    fontSize = 18.sp
+                )
+            }
+
+            Spacer(Modifier.height(200.dp))
+
+
+        }
+    }
+}
+
+@Composable
+fun TasksScreen(){
+    Column {
+        Column(
+            modifier = Modifier.background(Color.Gray).padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Spacer(Modifier.height(30.dp))
+
+            Row {
+                Text(
+                    "Цели",
+                    modifier = Modifier,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start
+                )
+
+
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun GreetingPreview() {
     DiaTrackerTheme {
-        MainScreen()
+        TasksScreen()
     }
 }
