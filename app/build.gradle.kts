@@ -1,20 +1,18 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
     namespace = "com.knz.diatracker"
-    compileSdk {
-        version = release(37) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.knz.diatracker"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -23,9 +21,11 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -35,11 +35,15 @@ android {
     buildFeatures {
         compose = true
     }
+    kotlinOptions {
+        jvmTarget = "11"
+    }
 }
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -48,9 +52,16 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
     implementation("androidx.compose.material:material-icons-core")
-
-    // Расширенный набор иконок (рекомендуется добавить, если используете много разных иконок)
     implementation("androidx.compose.material:material-icons-extended")
+
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
