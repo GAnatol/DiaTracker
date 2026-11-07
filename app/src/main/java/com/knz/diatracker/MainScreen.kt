@@ -143,7 +143,7 @@ fun MainScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wrapContentHeight(), // Высота подстраивается под содержимое
+                    .wrapContentHeight(),
                 shape = RoundedCornerShape(15.dp),
                 color = Color.White,
             ) {
@@ -153,8 +153,7 @@ fun MainScreen(
                         showShortInsulin = showShortInsulin,
                         showLongInsulin = showLongInsulin,
                         showMixedInsulin = showMixedInsulin,
-                        dateTimeText = formattedDateTime,
-                        onDateTimeClick = openDateTimePicker
+                        dateTimeText = formattedDateTime
                     )
                 }
             }
@@ -214,7 +213,6 @@ fun MainScreen(
                                             .padding(12.dp),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        // Верхняя строка: Дата и тип приёма пищи
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween
@@ -375,7 +373,6 @@ fun MainScreen(
                         showLongInsulin = showLongInsulin,
                         showMixedInsulin = showMixedInsulin,
                         dateTimeText = selectedRecordForEdit!!.dateTimeText,
-                        onDateTimeClick = openDateTimePicker,
                         existingRecord = selectedRecordForEdit,
                         onRecordSavedOrUpdated = {
                             isEditDialogVisible = false

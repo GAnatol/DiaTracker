@@ -5,32 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.knz.diatracker.ui.theme.DiaTrackerTheme
 
@@ -42,7 +26,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DiaTrackerTheme {
-                MainApp(viewModel())
+                MainApp(viewModel)
             }
         }
     }
@@ -51,121 +35,79 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainApp(viewModel: MainViewModel = viewModel()) {
     val settings by viewModel.uiState.collectAsState()
+    val currentScreen = viewModel.currentScreen
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        when (viewModel.currentScreen) {
-            Screen.MAIN -> MainScreen({ viewModel.navigateTo(Screen.SETTINGS) })
-            Screen.SETTINGS -> SettingsScreen(
-                onBack = { viewModel.navigateTo(Screen.MAIN) },
-                settings = settings,
-                onGeneralChanged = { viewModel.toggleGeneralInsulin(it) },
-                onShortChanged = { viewModel.toggleShortInsulin(it) },
-                onLongChanged = { viewModel.toggleLongInsulin(it) },
-                onMixedChanged = { viewModel.toggleMixedInsulin(it) }
-            )
-            else -> {}
-        }
-    }
-}
-
-data class MeasurementType(
-    val title: String,
-    val unit: String,
-    val minWhole: Float,
-    val maxWhole: Float,
-    val wholeSteps: Int,
-    val hasDecimal: Boolean
-)
-
-
-@Composable
-fun StatsScreen(){
-    Column {
-        Column(
-            modifier = Modifier.background(Color.Gray).padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(Modifier.height(30.dp))
-
-            Row{
-                Text(
-                    "Статистика",
-                    modifier = Modifier,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Start
-                )
-                Spacer(Modifier.weight(1f))
-
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Поделиться",
-                    tint = Color.White
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Row (
-                modifier = Modifier.border(
-                    shape = RoundedCornerShape(10.dp),
-                    width = 1.dp,
-                    color = Color.Black
-                ).padding(10.dp)
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = Color(0xFF2c3e6b), // Задаем цвет фона всего Scaffold (под цвет шапки)
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                contentColor = Color(0xFF2c3e6b)
             ) {
-                Text(
-                    "День",
-                    fontSize = 18.sp
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Главная") },
+                    label = { Text("Главная") },
+                    selected = currentScreen == Screen.MAIN,
+                    onClick = { viewModel.navigateTo(Screen.MAIN) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color(0xFF2c3e6b),
+                        indicatorColor = Color(0xFF2c3e6b)
                     )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "Неделя",
-                    fontSize = 18.sp
                 )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "Месяц",
-                    fontSize = 18.sp
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Статистика") },
+                    label = { Text("Статистика") },
+                    selected = currentScreen == Screen.STATS,
+                    onClick = { viewModel.navigateTo(Screen.STATS) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color(0xFF2c3e6b),
+                        indicatorColor = Color(0xFF2c3e6b)
+                    )
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Настройки") },
+                    label = { Text("Настройки") },
+                    selected = currentScreen == Screen.SETTINGS,
+                    onClick = { viewModel.navigateTo(Screen.SETTINGS) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color(0xFF2c3e6b),
+                        indicatorColor = Color(0xFF2c3e6b)
+                    )
                 )
             }
-
-            Spacer(Modifier.height(200.dp))
-
-
         }
-    }
-}
-
-@Composable
-fun TasksScreen(){
-    Column {
-        Column(
-            modifier = Modifier.background(Color.Gray).padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+    ) { innerPadding ->
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = innerPadding.calculateBottomPadding()),
+            color = Color.Transparent
         ) {
-
-            Spacer(Modifier.height(30.dp))
-
-            Row {
-                Text(
-                    "Цели",
-                    modifier = Modifier,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Start
-                )
-
-
+            when (currentScreen) {
+                Screen.MAIN -> {
+                    MainScreen(
+                        onOpenSettings = { viewModel.navigateTo(Screen.SETTINGS) }
+                    )
+                }
+                Screen.STATS -> {
+                    StatsScreen(settings)
+                }
+                Screen.SETTINGS -> {
+                    SettingsScreen(
+                        onBack = { viewModel.navigateTo(Screen.MAIN) },
+                        settings = settings,
+                        onGeneralChanged = { viewModel.toggleGeneralInsulin(it) },
+                        onShortChanged = { viewModel.toggleShortInsulin(it) },
+                        onLongChanged = { viewModel.toggleLongInsulin(it) },
+                        onMixedChanged = { viewModel.toggleMixedInsulin(it) }
+                    )
+                }
+                else -> {}
             }
         }
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun GreetingPreview() {
-    DiaTrackerTheme {
     }
 }

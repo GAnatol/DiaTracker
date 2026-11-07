@@ -1,5 +1,8 @@
 package com.knz.diatracker
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.graphics.drawable.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,14 +17,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.knz.diatracker.data.AppDatabase
 import com.knz.diatracker.data.DiabetesRecord
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+data class MeasurementItem(
+    val id: Int,
+    val description: String,
+    val icon: ImageVector? = null,
+    val textLabel: String? = null,
+    val isVisible: Boolean = true
+)
 
 @Composable
 fun GlucoseRecordScreen(
@@ -30,7 +46,6 @@ fun GlucoseRecordScreen(
     showLongInsulin: Boolean,
     showMixedInsulin: Boolean,
     dateTimeText: String,
-    onDateTimeClick: () -> Unit,
     existingRecord: DiabetesRecord? = null,
     onRecordSavedOrUpdated: () -> Unit = {}
 ) {
@@ -39,20 +54,75 @@ fun GlucoseRecordScreen(
     val database = remember { AppDatabase.getDatabase(context) }
     val dao = database.diabetesDao()
 
+    var currentDateTimeText by remember(existingRecord) {
+        mutableStateOf(existingRecord?.dateTimeText ?: dateTimeText)
+    }
+
+    val openInternalDateTimePicker = {
+        val calendarNow = Calendar.getInstance()
+        val datePickerDialog = DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                val isToday = (y == calendarNow.get(Calendar.YEAR) &&
+                        m == calendarNow.get(Calendar.MONTH) &&
+                        d == calendarNow.get(Calendar.DAY_OF_MONTH))
+
+                TimePickerDialog(
+                    context,
+                    { _, h, min ->
+                        val finalHour: Int
+                        val finalMin: Int
+                        if (isToday) {
+                            val selectedMinutesTotal = h * 60 + min
+                            val currentMinutesTotal = calendarNow.get(Calendar.HOUR_OF_DAY) * 60 + calendarNow.get(Calendar.MINUTE)
+                            if (selectedMinutesTotal > currentMinutesTotal) {
+                                finalHour = calendarNow.get(Calendar.HOUR_OF_DAY)
+                                finalMin = calendarNow.get(Calendar.MINUTE)
+                            } else {
+                                finalHour = h
+                                finalMin = min
+                            }
+                        } else {
+                            finalHour = h
+                            finalMin = min
+                        }
+
+                        val cal = Calendar.getInstance().apply {
+                            set(y, m, d, finalHour, finalMin)
+                        }
+                        val formatter = SimpleDateFormat(
+                            "d MMMM yyyy HH:mm", Locale("ru")
+                        )
+                        currentDateTimeText = formatter.format(cal.time)
+                    },
+                    calendarNow.get(Calendar.HOUR_OF_DAY),
+                    calendarNow.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            calendarNow.get(Calendar.YEAR),
+            calendarNow.get(Calendar.MONTH),
+            calendarNow.get(Calendar.DAY_OF_MONTH)
+        )
+        datePickerDialog.datePicker.maxDate = calendarNow.timeInMillis
+        datePickerDialog.show()
+    }
+
     var selectedMeasurement by remember { mutableStateOf(0) }
     var resetTrigger by remember { mutableIntStateOf(0) }
 
-    var bloodSugar by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.bloodSugar ?: 0f) }
-    var breadUnits by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.breadUnits ?: 0f) }
-    var generalInsulin by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.generalInsulin ?: 0f) }
-    var shortInsulin by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.shortInsulin ?: 0f) }
-    var longInsulin by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.longInsulin ?: 0f) }
-    var mixedInsulin by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.mixedInsulin ?: 0f) }
-    var weight by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.weight ?: 0f) }
-    var activityMinutes by remember(existingRecord, resetTrigger) { mutableFloatStateOf(existingRecord?.activityMinutes ?: 0f) }
+    var bloodSugar by rememberRecordFloat(existingRecord, resetTrigger) { it.bloodSugar }
+    var breadUnits by rememberRecordFloat(existingRecord, resetTrigger) { it.breadUnits }
+    var generalInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.generalInsulin }
+    var shortInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.shortInsulin }
+    var longInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.longInsulin }
+    var mixedInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.mixedInsulin }
+    var weight by rememberRecordFloat(existingRecord, resetTrigger) { it.weight }
+    var activityMinutes by rememberRecordFloat(existingRecord, resetTrigger) { it.activityMinutes }
 
-
-    var noteText by remember(existingRecord, resetTrigger) { mutableStateOf(existingRecord?.note ?: "") }
+    var noteText by remember(existingRecord, resetTrigger) {
+        mutableStateOf(existingRecord?.note ?: "")
+    }
 
     var selectedMealTime by remember(existingRecord, resetTrigger) {
         mutableIntStateOf(
@@ -64,7 +134,9 @@ fun GlucoseRecordScreen(
         )
     }
 
-    var selectedActivity by remember(existingRecord, resetTrigger) { mutableStateOf(existingRecord?.activityName ?: "") }
+    var selectedActivity by remember(
+        existingRecord, resetTrigger
+    ) { mutableStateOf(existingRecord?.activityName ?: "") }
     val scrollState = rememberScrollState()
 
     val currentSliderVal = when (selectedMeasurement) {
@@ -90,14 +162,14 @@ fun GlucoseRecordScreen(
     }
 
     Column (
-        Modifier.fillMaxWidth().padding(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(10.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
         ) {
             if (existingRecord != null) {
                 IconButton(
@@ -107,7 +179,7 @@ fun GlucoseRecordScreen(
                             onRecordSavedOrUpdated()
                         }
                     },
-                    modifier = Modifier.padding(start = 4.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -116,14 +188,13 @@ fun GlucoseRecordScreen(
                     )
                 }
             } else {
-                Icon(
-                    imageVector = currentHeaderIcon,
-                    contentDescription = "icon",
-                    modifier = Modifier.padding(start = 10.dp)
-                )
+                Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = currentHeaderIcon,
+                        contentDescription = "icon"
+                    )
+                }
             }
-
-            Spacer(Modifier.weight(1f))
 
             Text(
                 text = when(selectedMeasurement) {
@@ -138,34 +209,38 @@ fun GlucoseRecordScreen(
                     8 -> "Физическая активность"
                     else -> "Запись"
                 },
-                modifier = Modifier.weight(4f),
-                fontSize = 20.sp,
-                textAlign = TextAlign.Center,
-                softWrap = false
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            Icon(
-                imageVector = Icons.Default.Replay,
-                contentDescription = "reset",
                 modifier = Modifier
-                    .padding(end = 10.dp)
-                    .clickable {
-                        resetTrigger++
-                        noteText = ""
-                        selectedActivity = ""
-                        selectedMealTime = 0
-                        bloodSugar = 0f
-                        breadUnits = 0f
-                        generalInsulin = 0f
-                        shortInsulin = 0f
-                        longInsulin = 0f
-                        mixedInsulin = 0f
-                        weight = 0f
-                        activityMinutes = 0f
-                    }
+                    .weight(1f)
+                    .padding(horizontal = 4.dp),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+
+            IconButton(
+                onClick = {
+                    resetTrigger++
+                    noteText = ""
+                    selectedActivity = ""
+                    selectedMealTime = 0
+                    bloodSugar = 0f
+                    breadUnits = 0f
+                    generalInsulin = 0f
+                    shortInsulin = 0f
+                    longInsulin = 0f
+                    mixedInsulin = 0f
+                    weight = 0f
+                    activityMinutes = 0f
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Replay,
+                    contentDescription = "reset"
+                )
+            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -178,88 +253,34 @@ fun GlucoseRecordScreen(
                 .horizontalScroll(scrollState)
                 .padding(horizontal = 10.dp)
         ) {
-            // Сахар
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 0 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 0) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.Bloodtype, tint = Color.White, contentDescription = null) } }
-            // Еда
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 1 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 1) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.EmojiFoodBeverage, tint = Color.White, contentDescription = null) } }
+            val items = listOf(
+                MeasurementItem(0, "Сахар", icon = Icons.Default.Bloodtype),
+                MeasurementItem(1, "Еда", icon = Icons.Default.EmojiFoodBeverage),
+                MeasurementItem(2, "Инсулин", icon = Icons.Default.MedicalServices, isVisible = showGeneralInsulin),
+                MeasurementItem(3, "Инсулин короткий", textLabel = "И кор.", isVisible = showShortInsulin),
+                MeasurementItem(4, "Инсулин продлённый", textLabel = "И пр.", isVisible = showLongInsulin),
+                MeasurementItem(5, "Инсулин смешанный", textLabel = "mix", isVisible = showMixedInsulin),
+                MeasurementItem(6, "Вес", icon = Icons.Default.Scale),
+                MeasurementItem(7, "Заметка", icon = Icons.Default.Comment),
+                MeasurementItem(8, "Активность", icon = Icons.Default.DirectionsWalk)
+            )
 
-
-
-            if (showGeneralInsulin) {
-                Surface(
-                    modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 2 },
-                    shape = RoundedCornerShape(60.dp),
-                    color = if (selectedMeasurement == 2) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                    shadowElevation = 2.dp
-                ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.MedicalServices, tint = Color.White, contentDescription = null) } }
+            items.filter { it.isVisible }.forEach { item ->
+                CategoryButton(
+                    onClick = { selectedMeasurement = item.id },
+                    isSelected = selectedMeasurement == item.id,
+                    icon = item.icon,
+                    textLabel = item.textLabel
+                )
             }
-            if (showShortInsulin) {
-                Surface(
-                    modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 3 },
-                    shape = RoundedCornerShape(60.dp),
-                    color = if (selectedMeasurement == 3) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                    shadowElevation = 2.dp
-                ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("ИК", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) } }
-            }
-            if (showLongInsulin) {
-                Surface(
-                    modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 4 },
-                    shape = RoundedCornerShape(60.dp),
-                    color = if (selectedMeasurement == 4) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                    shadowElevation = 2.dp
-                ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("ИП", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) } }
-            }
-            if (showMixedInsulin) {
-                Surface(
-                    modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 5 },
-                    shape = RoundedCornerShape(60.dp),
-                    color = if (selectedMeasurement == 5) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                    shadowElevation = 2.dp
-                ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("mix", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) } }
-            }
-
-
-            // Вес
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 6 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 6) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.Scale, tint = Color.White, contentDescription = null) } }
-            // Заметка
-            Surface(
-                modifier = Modifier.size(45.dp).clickable {
-                    selectedMeasurement = 7
-                },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 7) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.Comment, tint = Color.White, contentDescription = null) } }
-            // Активность
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 8 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 8) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.DirectionsWalk, tint = Color.White, contentDescription = null) } }
         }
 
         Spacer(Modifier.height(15.dp))
 
         Text(
-            text = dateTimeText,
+            text = currentDateTimeText,
             modifier = Modifier
-                .clickable { onDateTimeClick() }
+                .clickable { openInternalDateTimePicker() }
                 .border(shape = RoundedCornerShape(10.dp), width = 1.dp, color = Color.Black)
                 .padding(horizontal = 25.dp, vertical = 4.dp),
             fontSize = 16.sp,
@@ -267,7 +288,6 @@ fun GlucoseRecordScreen(
         )
 
         Spacer(Modifier.height(10.dp))
-
 
         if (selectedMeasurement <= 6) {
             Sliders(
@@ -331,7 +351,10 @@ fun GlucoseRecordScreen(
                                 color = if (isSelected) Color(0xFF2c3e6b) else Color.Transparent,
                                 shape = RoundedCornerShape(14.dp)
                             )
-                            .border(width = 1.dp, color = Color(0xFF2c3e6b), shape = RoundedCornerShape(14.dp))
+                            .border(
+                                width = 1.dp, color = Color(0xFF2c3e6b),
+                                shape = RoundedCornerShape(14.dp)
+                            )
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -342,11 +365,21 @@ fun GlucoseRecordScreen(
                             color = if (isSelected) Color.White else Color(0xFF4c5e8b),
                             shadowElevation = 2.dp
                         ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(imageVector = icon, contentDescription = label, tint = if (isSelected) Color(0xFF2c3e6b) else Color.White)
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = if (isSelected) Color(0xFF2c3e6b) else Color.White)
                             }
                         }
-                        Text(text = label, fontSize = 12.sp, color = if (isSelected) Color.White else Color.Black)
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            color = if (isSelected) Color.White else Color.Black
+                        )
                     }
                 }
             }
@@ -361,45 +394,31 @@ fun GlucoseRecordScreen(
                 placeholder = { Text("Введите комментарий...") },
                 singleLine = false,
                 minLines = 2,
-                maxLines = 5
+                maxLines = 5,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black
+                )
             )
         }
 
         Spacer(Modifier.height(10.dp))
 
-
-
         Row {
-            Text(
+            MealText(
                 "до еды",
-                modifier = Modifier
-                    .background(
-                        color = if (selectedMealTime == 1) Color(0xFF2c3e6b) else Color(0xFFe8e8e8),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .clickable { selectedMealTime = if (selectedMealTime == 1) 0 else 1 }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                color = if (selectedMealTime == 1) Color.White else Color(0xFF808080),
-                fontWeight = if (selectedMealTime == 1) FontWeight.Bold else FontWeight.Normal
+                selectedMealTime == 1,
+                onClick = { selectedMealTime = if (selectedMealTime == 1) 0 else 1 }
             )
             Spacer(Modifier.width(20.dp))
-            Text(
+            MealText(
                 "после еды",
-                modifier = Modifier
-                    .background(
-                        color = if (selectedMealTime == 2) Color(0xFF2c3e6b) else Color(0xFFe8e8e8),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .clickable { selectedMealTime = if (selectedMealTime == 2) 0 else 2 }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                color = if (selectedMealTime == 2) Color.White else Color(0xFF808080),
-                fontWeight = if (selectedMealTime == 2) FontWeight.Bold else FontWeight.Normal
+                selectedMealTime == 2,
+                onClick = { selectedMealTime = if (selectedMealTime == 2) 0 else 2 }
             )
         }
 
         Spacer(Modifier.height(20.dp))
-
-
 
         Text(
             text = if (existingRecord == null) "подтвердить" else "сохранить изменения",
@@ -407,7 +426,6 @@ fun GlucoseRecordScreen(
                 .background(Color(0xFF4c5e8b), shape = RoundedCornerShape(10.dp))
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .clickable {
-                    // Защита от пустых записей
                     val hasData = bloodSugar > 0f || breadUnits > 0f ||
                             generalInsulin > 0f || shortInsulin > 0f ||
                             longInsulin > 0f || mixedInsulin > 0f ||
@@ -417,10 +435,15 @@ fun GlucoseRecordScreen(
                     if (!hasData) return@clickable
 
                     coroutineScope.launch {
+                        val parsedTimestamp =
+                            parseRecordTimestamp(
+                                currentDateTimeText, System.currentTimeMillis()
+                            )
+
                         val record = DiabetesRecord(
                             id = existingRecord?.id ?: 0L,
-                            timestamp = existingRecord?.timestamp ?: System.currentTimeMillis(),
-                            dateTimeText = dateTimeText,
+                            timestamp = parsedTimestamp,
+                            dateTimeText = currentDateTimeText,
                             mealType = when (selectedMealTime) {
                                 1 -> "до еды"
                                 2 -> "после еды"
@@ -464,40 +487,66 @@ fun GlucoseRecordScreen(
             fontWeight = FontWeight.Bold
         )
     }
+}
 
-    @Composable
-    fun OptionalRecords() {
-        if (showGeneralInsulin) {
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 2 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 2) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.MedicalServices, tint = Color.White, contentDescription = null) } }
-        }
-        if (showShortInsulin) {
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 3 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 3) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("ИК", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) } }
-        }
-        if (showLongInsulin) {
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 4 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 4) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("ИП", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) } }
-        }
-        if (showMixedInsulin) {
-            Surface(
-                modifier = Modifier.size(45.dp).clickable { selectedMeasurement = 5 },
-                shape = RoundedCornerShape(60.dp),
-                color = if (selectedMeasurement == 5) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
-                shadowElevation = 2.dp
-            ) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("mix", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp) } }
+@Composable
+inline fun rememberRecordFloat(
+    existingRecord: DiabetesRecord?,
+    resetTrigger: Int,
+    crossinline selector: (DiabetesRecord) -> Float?
+): MutableFloatState {
+    val initial = existingRecord?.let(selector) ?: 0f
+    return remember(existingRecord, resetTrigger) { mutableFloatStateOf(initial) }
+}
+
+@Composable
+fun CategoryButton(
+    onClick: () -> Unit,
+    isSelected: Boolean,
+    icon: ImageVector? = null,
+    textLabel: String? = null
+) {
+    Surface(
+        modifier = Modifier.size(45.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(60.dp),
+        color = if (isSelected) Color(0xFF2c3e6b) else Color(0xFF4c5e8b),
+        shadowElevation = 2.dp
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    tint = Color.White,
+                    contentDescription = null
+                )
+            } else if (textLabel != null) {
+                Text(
+                    text = textLabel,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
         }
     }
+}
+
+@Composable
+fun MealText(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text,
+        modifier = Modifier
+            .background(
+                color = if (isSelected) Color(0xFF2c3e6b) else Color(0xFFe8e8e8),
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        color = if (isSelected) Color.White else Color(0xFF808080),
+        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+    )
 }

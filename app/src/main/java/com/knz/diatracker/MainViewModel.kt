@@ -41,7 +41,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val MIXED_INSULIN = booleanPreferencesKey("show_mixed_insulin")
     }
 
-    // Поток настроек, который автоматически обновляется из DataStore
     val uiState: StateFlow<UserSettings> = context.dataStore.data
         .map { preferences ->
             UserSettings(
@@ -57,7 +56,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = UserSettings(general = true, short = false, long = false, mixed = false)
         )
 
-    // Методы для изменения и сохранения настроек
     fun toggleGeneralInsulin(value: Boolean) {
         viewModelScope.launch {
             context.dataStore.edit { it[PreferencesKeys.GENERAL_INSULIN] = value }

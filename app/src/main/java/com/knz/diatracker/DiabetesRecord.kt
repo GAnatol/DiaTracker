@@ -7,13 +7,13 @@ import androidx.room.PrimaryKey
 data class DiabetesRecord(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,
-    val timestamp: Long,          // Точное время создания записи (для сортировки)
-    val dateTimeText: String,     // Красивая строка даты/времени для отображения
+    val timestamp: Long,          // Точное время создания записи
+    val dateTimeText: String,     // Строка даты и времени для отображения
     val mealType: String?,        // "до еды", "после еды" или null
 
     val bloodSugar: Float?,       // Сахар
     val breadUnits: Float?,       // Еда (ХЕ)
-    val generalInsulin: Float?,   // Общий инсулин
+    val generalInsulin: Float?,   // Инсулин (если не выбран конкретный тип)
     val shortInsulin: Float?,     // Короткий
     val longInsulin: Float?,      // Продленный
     val mixedInsulin: Float?,     // Смешанный
