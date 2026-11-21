@@ -55,7 +55,7 @@ fun SettingsScreen(
                 .background(Color(0xFF2c3e6b))
                 .padding(horizontal = 16.dp, vertical = 20.dp)
         ) {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -216,7 +216,7 @@ fun SettingsScreen(
                             )
 
                             Text(
-                                text = "Версия 0.8.0",
+                                text = "Версия 0.8.1",
                                 fontSize = 14.sp,
                                 color = Color.Gray
                             )

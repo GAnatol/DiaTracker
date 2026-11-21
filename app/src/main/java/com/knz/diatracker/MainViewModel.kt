@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,8 +18,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-
-import androidx.datastore.preferences.core.stringPreferencesKey
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -114,8 +113,8 @@ data class StatsUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).diabetesDao()
     private val context = application.applicationContext
+    private val dateTimeFormatter = SimpleDateFormat("d MMMM yyyy HH:mm", Locale("ru"))
 
-    // Список всех записей из БД
     val recordsList: StateFlow<List<DiabetesRecord>> = dao.getAllRecords()
         .stateIn(
             scope = viewModelScope,
@@ -123,7 +122,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = emptyList()
         )
 
-    // Ключи для настроек
     private object PreferencesKeys {
         val GENERAL_INSULIN = booleanPreferencesKey("show_general_insulin")
         val SHORT_INSULIN = booleanPreferencesKey("show_short_insulin")
@@ -147,7 +145,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = UserSettings(general = true, short = false, long = false, mixed = false, thresholdMode = ThresholdKeyboardMode.AUTO_KEYBOARD)
+            initialValue = UserSettings(
+                general = true,
+                short = false,
+                long = false,
+                mixed = false,
+                thresholdMode = ThresholdKeyboardMode.AUTO_KEYBOARD
+            )
         )
 
     fun toggleGeneralInsulin(value: Boolean) {
@@ -214,7 +218,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         draftInputState = GlucoseInputState(resetTrigger = draftInputState.resetTrigger + 1)
         resetDateTimeToNow()
     }
-
 
     var selectedRecordForEdit by mutableStateOf<DiabetesRecord?>(null)
         private set
@@ -294,7 +297,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
     fun saveDraftRecord(dateTimeText: String) {
         saveRecordInternal(draftInputState, dateTimeText, null)
     }
@@ -344,28 +346,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val initialCalendar = Calendar.getInstance()
+    var selectedYear by mutableStateOf(initialCalendar.get(Calendar.YEAR))
+        private set
+    var selectedMonth by mutableStateOf(initialCalendar.get(Calendar.MONTH))
+        private set
+    var selectedDay by mutableStateOf(initialCalendar.get(Calendar.DAY_OF_MONTH))
+        private set
+    var selectedHour by mutableStateOf(initialCalendar.get(Calendar.HOUR_OF_DAY))
+        private set
+    var selectedMinute by mutableStateOf(initialCalendar.get(Calendar.MINUTE))
+        private set
 
-    private val calendarNow = Calendar.getInstance()
-    var selectedYear by mutableStateOf(calendarNow.get(Calendar.YEAR))
+    var formattedDateTimeText by mutableStateOf(formatCurrentSelection())
         private set
-    var selectedMonth by mutableStateOf(calendarNow.get(Calendar.MONTH))
-        private set
-    var selectedDay by mutableStateOf(calendarNow.get(Calendar.DAY_OF_MONTH))
-        private set
-    var selectedHour by mutableStateOf(calendarNow.get(Calendar.HOUR_OF_DAY))
-        private set
-    var selectedMinute by mutableStateOf(calendarNow.get(Calendar.MINUTE))
-        private set
+
+    private fun formatCurrentSelection(): String {
+        val cal = Calendar.getInstance().apply {
+            set(selectedYear, selectedMonth, selectedDay, selectedHour, selectedMinute)
+        }
+        return dateTimeFormatter.format(cal.time)
+    }
 
     fun updateDate(year: Int, month: Int, day: Int) {
         selectedYear = year
         selectedMonth = month
         selectedDay = day
+        formattedDateTimeText = formatCurrentSelection()
     }
 
     fun updateTime(hour: Int, minute: Int) {
         selectedHour = hour
         selectedMinute = minute
+        formattedDateTimeText = formatCurrentSelection()
     }
 
     fun resetDateTimeToNow() {
@@ -375,19 +388,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         selectedDay = now.get(Calendar.DAY_OF_MONTH)
         selectedHour = now.get(Calendar.HOUR_OF_DAY)
         selectedMinute = now.get(Calendar.MINUTE)
+        formattedDateTimeText = dateTimeFormatter.format(now.time)
     }
 
-    val formattedDateTime: String
-        get() {
-            val cal = Calendar.getInstance().apply {
-                set(selectedYear, selectedMonth, selectedDay, selectedHour, selectedMinute)
-            }
-            val formatter = SimpleDateFormat("d MMMM yyyy HH:mm", Locale("ru"))
-            return formatter.format(cal.time)
-        }
-
-
-    
     private val _selectedPeriod = MutableStateFlow(StatsPeriod.WEEK)
     val selectedPeriod: StateFlow<StatsPeriod> = _selectedPeriod.asStateFlow()
 

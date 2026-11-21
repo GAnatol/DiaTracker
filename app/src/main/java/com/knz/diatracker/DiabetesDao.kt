@@ -18,6 +18,6 @@ interface DiabetesDao {
     @Delete
     suspend fun deleteRecord(record: DiabetesRecord)
 
-    @Query("SELECT * FROM diabetes_records ORDER BY timestamp DESC, id DESC")
+    @Query("SELECT * FROM diabetes_records ORDER BY timestamp DESC")
     fun getAllRecords(): Flow<List<DiabetesRecord>>
 }

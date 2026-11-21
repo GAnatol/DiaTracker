@@ -39,7 +39,7 @@ fun MainApp(viewModel: MainViewModel = viewModel()) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color(0xFF2c3e6b), // Задаем цвет фона всего Scaffold (под цвет шапки)
+        containerColor = Color(0xFF2c3e6b),
         bottomBar = {
             NavigationBar(
                 containerColor = Color.White,
