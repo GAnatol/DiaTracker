@@ -1,8 +1,5 @@
 package com.knz.diatracker
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
-import android.graphics.drawable.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,18 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.knz.diatracker.data.AppDatabase
-import com.knz.diatracker.data.DiabetesRecord
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 data class MeasurementItem(
     val id: Int,
@@ -46,112 +36,34 @@ fun GlucoseRecordScreen(
     showLongInsulin: Boolean,
     showMixedInsulin: Boolean,
     dateTimeText: String,
-    existingRecord: DiabetesRecord? = null,
-    onRecordSavedOrUpdated: () -> Unit = {}
+    onDateTimeClick: () -> Unit,
+    inputState: GlucoseInputState,
+    onMeasurementChanged: (Int) -> Unit,
+    onValueChanged: (Int, Float) -> Unit,
+    onMealTimeChanged: (Int) -> Unit,
+    onActivityChanged: (String) -> Unit,
+    onNoteChanged: (String) -> Unit,
+    onReset: () -> Unit,
+    onSaveRecord: () -> Unit,
+    onDeleteRecord: (() -> Unit)? = null,
+    isEditMode: Boolean = false,
+    thresholdMode: ThresholdKeyboardMode = ThresholdKeyboardMode.AUTO_KEYBOARD
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val database = remember { AppDatabase.getDatabase(context) }
-    val dao = database.diabetesDao()
-
-    var currentDateTimeText by remember(existingRecord) {
-        mutableStateOf(existingRecord?.dateTimeText ?: dateTimeText)
-    }
-
-    val openInternalDateTimePicker = {
-        val calendarNow = Calendar.getInstance()
-        val datePickerDialog = DatePickerDialog(
-            context,
-            { _, y, m, d ->
-                val isToday = (y == calendarNow.get(Calendar.YEAR) &&
-                        m == calendarNow.get(Calendar.MONTH) &&
-                        d == calendarNow.get(Calendar.DAY_OF_MONTH))
-
-                TimePickerDialog(
-                    context,
-                    { _, h, min ->
-                        val finalHour: Int
-                        val finalMin: Int
-                        if (isToday) {
-                            val selectedMinutesTotal = h * 60 + min
-                            val currentMinutesTotal = calendarNow.get(Calendar.HOUR_OF_DAY) * 60 + calendarNow.get(Calendar.MINUTE)
-                            if (selectedMinutesTotal > currentMinutesTotal) {
-                                finalHour = calendarNow.get(Calendar.HOUR_OF_DAY)
-                                finalMin = calendarNow.get(Calendar.MINUTE)
-                            } else {
-                                finalHour = h
-                                finalMin = min
-                            }
-                        } else {
-                            finalHour = h
-                            finalMin = min
-                        }
-
-                        val cal = Calendar.getInstance().apply {
-                            set(y, m, d, finalHour, finalMin)
-                        }
-                        val formatter = SimpleDateFormat(
-                            "d MMMM yyyy HH:mm", Locale("ru")
-                        )
-                        currentDateTimeText = formatter.format(cal.time)
-                    },
-                    calendarNow.get(Calendar.HOUR_OF_DAY),
-                    calendarNow.get(Calendar.MINUTE),
-                    true
-                ).show()
-            },
-            calendarNow.get(Calendar.YEAR),
-            calendarNow.get(Calendar.MONTH),
-            calendarNow.get(Calendar.DAY_OF_MONTH)
-        )
-        datePickerDialog.datePicker.maxDate = calendarNow.timeInMillis
-        datePickerDialog.show()
-    }
-
-    var selectedMeasurement by remember { mutableStateOf(0) }
-    var resetTrigger by remember { mutableIntStateOf(0) }
-
-    var bloodSugar by rememberRecordFloat(existingRecord, resetTrigger) { it.bloodSugar }
-    var breadUnits by rememberRecordFloat(existingRecord, resetTrigger) { it.breadUnits }
-    var generalInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.generalInsulin }
-    var shortInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.shortInsulin }
-    var longInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.longInsulin }
-    var mixedInsulin by rememberRecordFloat(existingRecord, resetTrigger) { it.mixedInsulin }
-    var weight by rememberRecordFloat(existingRecord, resetTrigger) { it.weight }
-    var activityMinutes by rememberRecordFloat(existingRecord, resetTrigger) { it.activityMinutes }
-
-    var noteText by remember(existingRecord, resetTrigger) {
-        mutableStateOf(existingRecord?.note ?: "")
-    }
-
-    var selectedMealTime by remember(existingRecord, resetTrigger) {
-        mutableIntStateOf(
-            when (existingRecord?.mealType) {
-                "до еды" -> 1
-                "после еды" -> 2
-                else -> 0
-            }
-        )
-    }
-
-    var selectedActivity by remember(
-        existingRecord, resetTrigger
-    ) { mutableStateOf(existingRecord?.activityName ?: "") }
     val scrollState = rememberScrollState()
 
-    val currentSliderVal = when (selectedMeasurement) {
-        0 -> bloodSugar
-        1 -> breadUnits
-        2 -> generalInsulin
-        3 -> shortInsulin
-        4 -> longInsulin
-        5 -> mixedInsulin
-        6 -> weight
-        8 -> activityMinutes
+    val currentSliderVal = when (inputState.selectedMeasurement) {
+        0 -> inputState.bloodSugar
+        1 -> inputState.breadUnits
+        2 -> inputState.generalInsulin
+        3 -> inputState.shortInsulin
+        4 -> inputState.longInsulin
+        5 -> inputState.mixedInsulin
+        6 -> inputState.weight
+        8 -> inputState.activityMinutes
         else -> 0f
     }
 
-    val currentHeaderIcon = when(selectedMeasurement) {
+    val currentHeaderIcon = when (inputState.selectedMeasurement) {
         0 -> Icons.Default.Bloodtype
         1 -> Icons.Default.EmojiFoodBeverage
         2, 3, 4, 5 -> Icons.Default.MedicalServices
@@ -161,7 +73,7 @@ fun GlucoseRecordScreen(
         else -> Icons.Default.Bloodtype
     }
 
-    Column (
+    Column(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -171,14 +83,9 @@ fun GlucoseRecordScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
         ) {
-            if (existingRecord != null) {
+            if (isEditMode && onDeleteRecord != null) {
                 IconButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            dao.deleteRecord(existingRecord)
-                            onRecordSavedOrUpdated()
-                        }
-                    },
+                    onClick = onDeleteRecord,
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
@@ -197,7 +104,7 @@ fun GlucoseRecordScreen(
             }
 
             Text(
-                text = when(selectedMeasurement) {
+                text = when (inputState.selectedMeasurement) {
                     0 -> "Сахар"
                     1 -> "Еда (ХЕ)"
                     2 -> "Инсулин"
@@ -220,20 +127,7 @@ fun GlucoseRecordScreen(
             )
 
             IconButton(
-                onClick = {
-                    resetTrigger++
-                    noteText = ""
-                    selectedActivity = ""
-                    selectedMealTime = 0
-                    bloodSugar = 0f
-                    breadUnits = 0f
-                    generalInsulin = 0f
-                    shortInsulin = 0f
-                    longInsulin = 0f
-                    mixedInsulin = 0f
-                    weight = 0f
-                    activityMinutes = 0f
-                },
+                onClick = onReset,
                 modifier = Modifier.size(40.dp)
             ) {
                 Icon(
@@ -267,8 +161,8 @@ fun GlucoseRecordScreen(
 
             items.filter { it.isVisible }.forEach { item ->
                 CategoryButton(
-                    onClick = { selectedMeasurement = item.id },
-                    isSelected = selectedMeasurement == item.id,
+                    onClick = { onMeasurementChanged(item.id) },
+                    isSelected = inputState.selectedMeasurement == item.id,
                     icon = item.icon,
                     textLabel = item.textLabel
                 )
@@ -278,9 +172,9 @@ fun GlucoseRecordScreen(
         Spacer(Modifier.height(15.dp))
 
         Text(
-            text = currentDateTimeText,
+            text = dateTimeText,
             modifier = Modifier
-                .clickable { openInternalDateTimePicker() }
+                .clickable { onDateTimeClick() }
                 .border(shape = RoundedCornerShape(10.dp), width = 1.dp, color = Color.Black)
                 .padding(horizontal = 25.dp, vertical = 4.dp),
             fontSize = 16.sp,
@@ -289,25 +183,18 @@ fun GlucoseRecordScreen(
 
         Spacer(Modifier.height(10.dp))
 
-        if (selectedMeasurement <= 6) {
+        if (inputState.selectedMeasurement <= 6) {
             Sliders(
-                selectedTypeIndex = selectedMeasurement,
+                selectedTypeIndex = inputState.selectedMeasurement,
                 currentValue = currentSliderVal,
-                resetTrigger = resetTrigger,
-                onTypeChanged = { selectedMeasurement = it },
+                resetTrigger = inputState.resetTrigger,
+                thresholdMode = thresholdMode,
+                onTypeChanged = { onMeasurementChanged(it) },
                 onValueChanged = { newValue ->
-                    when (selectedMeasurement) {
-                        0 -> bloodSugar = newValue
-                        1 -> breadUnits = newValue
-                        2 -> generalInsulin = newValue
-                        3 -> shortInsulin = newValue
-                        4 -> longInsulin = newValue
-                        5 -> mixedInsulin = newValue
-                        6 -> weight = newValue
-                    }
+                    onValueChanged(inputState.selectedMeasurement, newValue)
                 }
             )
-        } else if (selectedMeasurement == 8) {
+        } else if (inputState.selectedMeasurement == 8) {
             val activitiesList = listOf(
                 Triple("Ходьба", Icons.Default.DirectionsWalk, "Ходьба"),
                 Triple("Бег", Icons.Default.DirectionsRun, "Бег"),
@@ -316,13 +203,16 @@ fun GlucoseRecordScreen(
                 Triple("Плавание", Icons.Default.Pool, "Плавание")
             )
 
-            if (selectedActivity.isNotEmpty()) {
+            if (inputState.selectedActivity.isNotEmpty()) {
                 Sliders(
-                    selectedTypeIndex = selectedMeasurement,
-                    currentValue = activityMinutes,
-                    resetTrigger = resetTrigger,
-                    onTypeChanged = { selectedMeasurement = it },
-                    onValueChanged = { newValue -> activityMinutes = newValue }
+                    selectedTypeIndex = inputState.selectedMeasurement,
+                    currentValue = inputState.activityMinutes,
+                    resetTrigger = inputState.resetTrigger,
+                    thresholdMode = thresholdMode,
+                    onTypeChanged = { onMeasurementChanged(it) },
+                    onValueChanged = { newValue ->
+                        onValueChanged(inputState.selectedMeasurement, newValue)
+                    }
                 )
             } else {
                 Text(
@@ -343,10 +233,12 @@ fun GlucoseRecordScreen(
                     .padding(horizontal = 10.dp)
             ) {
                 activitiesList.forEach { (id, icon, label) ->
-                    val isSelected = selectedActivity == id
+                    val isSelected = inputState.selectedActivity == id
                     Column(
                         modifier = Modifier
-                            .clickable { selectedActivity = if (selectedActivity == id) "" else id }
+                            .clickable {
+                                onActivityChanged(if (inputState.selectedActivity == id) "" else id)
+                            }
                             .background(
                                 color = if (isSelected) Color(0xFF2c3e6b) else Color.Transparent,
                                 shape = RoundedCornerShape(14.dp)
@@ -372,7 +264,8 @@ fun GlucoseRecordScreen(
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = label,
-                                    tint = if (isSelected) Color(0xFF2c3e6b) else Color.White)
+                                    tint = if (isSelected) Color(0xFF2c3e6b) else Color.White
+                                )
                             }
                         }
                         Text(
@@ -385,11 +278,11 @@ fun GlucoseRecordScreen(
             }
         }
 
-        if (selectedMeasurement == 7) {
+        if (inputState.selectedMeasurement == 7) {
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
-                value = noteText,
-                onValueChange = { noteText = it },
+                value = inputState.noteText,
+                onValueChange = onNoteChanged,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 placeholder = { Text("Введите комментарий...") },
                 singleLine = false,
@@ -407,96 +300,43 @@ fun GlucoseRecordScreen(
         Row {
             MealText(
                 "до еды",
-                selectedMealTime == 1,
-                onClick = { selectedMealTime = if (selectedMealTime == 1) 0 else 1 }
+                inputState.selectedMealTime == 1,
+                onClick = {
+                    onMealTimeChanged(if (inputState.selectedMealTime == 1) 0 else 1)
+                }
             )
             Spacer(Modifier.width(20.dp))
             MealText(
                 "после еды",
-                selectedMealTime == 2,
-                onClick = { selectedMealTime = if (selectedMealTime == 2) 0 else 2 }
+                inputState.selectedMealTime == 2,
+                onClick = {
+                    onMealTimeChanged(if (inputState.selectedMealTime == 2) 0 else 2)
+                }
             )
         }
 
         Spacer(Modifier.height(20.dp))
 
         Text(
-            text = if (existingRecord == null) "подтвердить" else "сохранить изменения",
+            text = if (!isEditMode) "подтвердить" else "сохранить изменения",
             modifier = Modifier
                 .background(Color(0xFF4c5e8b), shape = RoundedCornerShape(10.dp))
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .clickable {
-                    val hasData = bloodSugar > 0f || breadUnits > 0f ||
-                            generalInsulin > 0f || shortInsulin > 0f ||
-                            longInsulin > 0f || mixedInsulin > 0f ||
-                            weight > 0f || noteText.isNotBlank() ||
-                            selectedActivity.isNotEmpty()
+                    val hasData = inputState.bloodSugar > 0f || inputState.breadUnits > 0f ||
+                            inputState.generalInsulin > 0f || inputState.shortInsulin > 0f ||
+                            inputState.longInsulin > 0f || inputState.mixedInsulin > 0f ||
+                            inputState.weight > 0f || inputState.noteText.isNotBlank() ||
+                            inputState.selectedActivity.isNotEmpty()
 
-                    if (!hasData) return@clickable
-
-                    coroutineScope.launch {
-                        val parsedTimestamp =
-                            parseRecordTimestamp(
-                                currentDateTimeText, System.currentTimeMillis()
-                            )
-
-                        val record = DiabetesRecord(
-                            id = existingRecord?.id ?: 0L,
-                            timestamp = parsedTimestamp,
-                            dateTimeText = currentDateTimeText,
-                            mealType = when (selectedMealTime) {
-                                1 -> "до еды"
-                                2 -> "после еды"
-                                else -> null
-                            },
-                            bloodSugar = if (bloodSugar > 0f) bloodSugar else null,
-                            breadUnits = if (breadUnits > 0f) breadUnits else null,
-                            generalInsulin = if (generalInsulin > 0f) generalInsulin else null,
-                            shortInsulin = if (shortInsulin > 0f) shortInsulin else null,
-                            longInsulin = if (longInsulin > 0f) longInsulin else null,
-                            mixedInsulin = if (mixedInsulin > 0f) mixedInsulin else null,
-                            weight = if (weight > 0f) weight else null,
-                            note = if (noteText.isNotBlank()) noteText else null,
-                            activityName = if (selectedActivity.isNotEmpty()) selectedActivity else null,
-                            activityMinutes = if (selectedActivity.isNotEmpty()) activityMinutes else null
-                        )
-
-                        if (existingRecord == null) {
-                            dao.insertRecord(record)
-                        } else {
-                            dao.updateRecord(record)
-                        }
-
-                        resetTrigger++
-                        noteText = ""
-                        selectedActivity = ""
-                        selectedMealTime = 0
-                        bloodSugar = 0f
-                        breadUnits = 0f
-                        generalInsulin = 0f
-                        shortInsulin = 0f
-                        longInsulin = 0f
-                        mixedInsulin = 0f
-                        weight = 0f
-                        activityMinutes = 0f
-
-                        onRecordSavedOrUpdated()
+                    if (hasData) {
+                        onSaveRecord()
                     }
                 },
             color = Color.White,
             fontWeight = FontWeight.Bold
         )
     }
-}
-
-@Composable
-inline fun rememberRecordFloat(
-    existingRecord: DiabetesRecord?,
-    resetTrigger: Int,
-    crossinline selector: (DiabetesRecord) -> Float?
-): MutableFloatState {
-    val initial = existingRecord?.let(selector) ?: 0f
-    return remember(existingRecord, resetTrigger) { mutableFloatStateOf(initial) }
 }
 
 @Composable

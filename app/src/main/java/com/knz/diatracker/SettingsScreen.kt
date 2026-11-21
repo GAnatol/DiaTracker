@@ -1,5 +1,6 @@
 package com.knz.diatracker
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,9 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,7 +38,8 @@ fun SettingsScreen(
     onGeneralChanged: (Boolean) -> Unit,
     onShortChanged: (Boolean) -> Unit,
     onLongChanged: (Boolean) -> Unit,
-    onMixedChanged: (Boolean) -> Unit
+    onMixedChanged: (Boolean) -> Unit,
+    onThresholdModeChanged: (ThresholdKeyboardMode) -> Unit
 ) {
     var currentSubSection by remember { mutableStateOf(SettingsSubSection.MAIN) }
 
@@ -96,7 +98,7 @@ fun SettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         SettingsMenuItem(
-                            title = "Настройки и профиль (в доработке)",
+                            title = "Настройки и профиль",
                             subtitle = "Управление параметрами",
                             icon = Icons.Default.Settings,
                             onClick = { currentSubSection = SettingsSubSection.SETTINGS }
@@ -120,7 +122,7 @@ fun SettingsScreen(
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Text(
                                 text = "Отображаемые типы инсулина",
@@ -129,16 +131,10 @@ fun SettingsScreen(
                                 color = Color(0xFF2c3e6b)
                             )
 
-                            Text(
-                                text = "Настройка отображения полей",
-                                fontSize = 13.sp,
-                                color = Color.Gray
-                            )
-
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(2.dp))
 
                             SettingSwitchRow(
-                                title = "Инсулин\n(если не выбран конкретный)",
+                                title = "Инсулин на приём пищи\n(если не выбран конкретный)",
                                 checked = settings.general,
                                 onCheckedChange = { isChecked ->
                                     onGeneralChanged(isChecked)
@@ -182,6 +178,20 @@ fun SettingsScreen(
                                     }
                                 }
                             )
+
+                            Divider(color = Color.LightGray, thickness = 1.dp)
+
+                            Text(
+                                text = "Режим клавиатуры при максимальном целом значения",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2c3e6b)
+                            )
+
+                            ThresholdSettingDropdownRow(
+                                selectedMode = settings.thresholdMode,
+                                onModeSelected = onThresholdModeChanged
+                            )
                         }
                     }
                 }
@@ -206,7 +216,7 @@ fun SettingsScreen(
                             )
 
                             Text(
-                                text = "Версия 1.0.0",
+                                text = "Версия 0.8.0",
                                 fontSize = 14.sp,
                                 color = Color.Gray
                             )
@@ -235,6 +245,72 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(30.dp))
+        }
+    }
+}
+
+@Composable
+fun ThresholdSettingDropdownRow(
+    selectedMode: ThresholdKeyboardMode,
+    onModeSelected: (ThresholdKeyboardMode) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = true },
+                shape = RoundedCornerShape(10.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFF2c3e6b).copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = selectedMode.title,
+                        fontSize = 15.sp,
+                        color = Color(0xFF2c3e6b),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Выбор режима",
+                        tint = Color(0xFF2c3e6b)
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .background(Color.White)
+            ) {
+                ThresholdKeyboardMode.entries.forEach { mode ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = mode.title,
+                                fontSize = 14.sp,
+                                fontWeight = if (mode == selectedMode) FontWeight.Bold else FontWeight.Normal,
+                                color = if (mode == selectedMode) Color(0xFF2c3e6b) else Color.Black
+                            )
+                        },
+                        onClick = {
+                            onModeSelected(mode)
+                            expanded = false
+                        }
+                    )
+                }
+            }
         }
     }
 }

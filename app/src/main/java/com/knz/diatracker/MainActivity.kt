@@ -90,11 +90,12 @@ fun MainApp(viewModel: MainViewModel = viewModel()) {
             when (currentScreen) {
                 Screen.MAIN -> {
                     MainScreen(
-                        onOpenSettings = { viewModel.navigateTo(Screen.SETTINGS) }
+                        onOpenSettings = { viewModel.navigateTo(Screen.SETTINGS) },
+                        viewModel = viewModel
                     )
                 }
                 Screen.STATS -> {
-                    StatsScreen(settings)
+                    StatsScreen(viewModel = viewModel)
                 }
                 Screen.SETTINGS -> {
                     SettingsScreen(
@@ -103,7 +104,8 @@ fun MainApp(viewModel: MainViewModel = viewModel()) {
                         onGeneralChanged = { viewModel.toggleGeneralInsulin(it) },
                         onShortChanged = { viewModel.toggleShortInsulin(it) },
                         onLongChanged = { viewModel.toggleLongInsulin(it) },
-                        onMixedChanged = { viewModel.toggleMixedInsulin(it) }
+                        onMixedChanged = { viewModel.toggleMixedInsulin(it) },
+                        onThresholdModeChanged = { viewModel.setThresholdKeyboardMode(it) }
                     )
                 }
                 else -> {}

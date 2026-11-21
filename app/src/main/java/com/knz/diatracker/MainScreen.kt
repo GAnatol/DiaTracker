@@ -21,17 +21,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.room.util.TableInfo
-import com.knz.diatracker.data.DiabetesRecord
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 @Composable
 fun MainScreen(
     onOpenSettings: () -> Unit,
+    viewModel: MainViewModel = viewModel()
 ) {
-    val viewModel: MainViewModel = viewModel()
     val settings by viewModel.uiState.collectAsState()
     val showGeneralInsulin = settings.general
     val showShortInsulin = settings.short
@@ -40,23 +37,10 @@ fun MainScreen(
 
     val recordsList by viewModel.recordsList.collectAsState()
 
-    var selectedRecordForEdit by remember { mutableStateOf<DiabetesRecord?>(null) }
-    var isEditDialogVisible by remember { mutableStateOf(false) }
-
-    val calendar = remember { Calendar.getInstance() }
-    var year by remember { mutableStateOf(calendar.get(Calendar.YEAR)) }
-    var month by remember { mutableStateOf(calendar.get(Calendar.MONTH)) }
-    var day by remember { mutableStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
-    var hour by remember { mutableStateOf(calendar.get(Calendar.HOUR_OF_DAY)) }
-    var minute by remember { mutableStateOf(calendar.get(Calendar.MINUTE)) }
-
-    val formattedDateTime = remember(year, month, day, hour, minute) {
-        val cal = Calendar.getInstance().apply {
-            set(year, month, day, hour, minute)
-        }
-        val formatter = SimpleDateFormat("d MMMM yyyy HH:mm", Locale("ru"))
-        formatter.format(cal.time)
-    }
+    val draftState = viewModel.draftInputState
+    val editState = viewModel.editInputState
+    val isEditDialogVisible = viewModel.isEditDialogVisible
+    val selectedRecordForEdit = viewModel.selectedRecordForEdit
 
     val context = LocalContext.current
 
@@ -65,9 +49,7 @@ fun MainScreen(
         val datePickerDialog = DatePickerDialog(
             context,
             { _, y, m, d ->
-                year = y
-                month = m
-                day = d
+                viewModel.updateDate(y, m, d)
                 val isToday = (y == calendarNow.get(Calendar.YEAR) &&
                         m == calendarNow.get(Calendar.MONTH) &&
                         d == calendarNow.get(Calendar.DAY_OF_MONTH))
@@ -79,25 +61,22 @@ fun MainScreen(
                             val selectedMinutesTotal = h * 60 + min
                             val currentMinutesTotal = calendarNow.get(Calendar.HOUR_OF_DAY) * 60 + calendarNow.get(Calendar.MINUTE)
                             if (selectedMinutesTotal > currentMinutesTotal) {
-                                hour = calendarNow.get(Calendar.HOUR_OF_DAY)
-                                minute = calendarNow.get(Calendar.MINUTE)
+                                viewModel.updateTime(calendarNow.get(Calendar.HOUR_OF_DAY), calendarNow.get(Calendar.MINUTE))
                             } else {
-                                hour = h
-                                minute = min
+                                viewModel.updateTime(h, min)
                             }
                         } else {
-                            hour = h
-                            minute = min
+                            viewModel.updateTime(h, min)
                         }
                     },
-                    hour,
-                    minute,
+                    viewModel.selectedHour,
+                    viewModel.selectedMinute,
                     true
                 ).show()
             },
-            year,
-            month,
-            day
+            viewModel.selectedYear,
+            viewModel.selectedMonth,
+            viewModel.selectedDay
         )
         datePickerDialog.datePicker.maxDate = calendarNow.timeInMillis
         datePickerDialog.show()
@@ -114,7 +93,7 @@ fun MainScreen(
                 .padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(25.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -128,18 +107,17 @@ fun MainScreen(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Start
                 )
-                IconButton(onClick = onOpenSettings) {
+/*                IconButton(onClick = onOpenSettings) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Настройки",
                         tint = Color.White
                     )
-                }
+                }*/
             }
 
             Spacer(Modifier.height(15.dp))
-
-            // Карточка ввода нового показателя
+            
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -153,7 +131,18 @@ fun MainScreen(
                         showShortInsulin = showShortInsulin,
                         showLongInsulin = showLongInsulin,
                         showMixedInsulin = showMixedInsulin,
-                        dateTimeText = formattedDateTime
+                        dateTimeText = viewModel.formattedDateTime,
+                        onDateTimeClick = openDateTimePicker,
+                        inputState = draftState,
+                        onMeasurementChanged = { viewModel.updateDraftMeasurement(it) },
+                        onValueChanged = { index, value -> viewModel.updateDraftValue(index, value) },
+                        onMealTimeChanged = { viewModel.updateDraftMealTime(it) },
+                        onActivityChanged = { viewModel.updateDraftActivity(it) },
+                        onNoteChanged = { viewModel.updateDraftNote(it) },
+                        onReset = { viewModel.resetDraftInputState() },
+                        onSaveRecord = { viewModel.saveDraftRecord(viewModel.formattedDateTime) },
+                        isEditMode = false,
+                        thresholdMode = settings.thresholdMode
                     )
                 }
             }
@@ -200,8 +189,7 @@ fun MainScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            selectedRecordForEdit = record
-                                            isEditDialogVisible = true
+                                            viewModel.startEditingRecord(record)
                                         },
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFFF5F6F8),
@@ -334,14 +322,11 @@ fun MainScreen(
                     }
                 }
             }
-
         }
-
-            Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(40.dp))
     }
 
-
-    if (isEditDialogVisible && selectedRecordForEdit != null) {
+    if (isEditDialogVisible && editState != null && selectedRecordForEdit != null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -350,7 +335,7 @@ fun MainScreen(
         )
 
         AlertDialog(
-            onDismissRequest = { isEditDialogVisible = false },
+            onDismissRequest = { viewModel.closeEditDialog() },
             confirmButton = {},
             shape = RoundedCornerShape(20.dp),
             containerColor = Color.White,
@@ -372,11 +357,19 @@ fun MainScreen(
                         showShortInsulin = showShortInsulin,
                         showLongInsulin = showLongInsulin,
                         showMixedInsulin = showMixedInsulin,
-                        dateTimeText = selectedRecordForEdit!!.dateTimeText,
-                        existingRecord = selectedRecordForEdit,
-                        onRecordSavedOrUpdated = {
-                            isEditDialogVisible = false
-                        }
+                        dateTimeText = selectedRecordForEdit.dateTimeText,
+                        onDateTimeClick = openDateTimePicker,
+                        inputState = editState,
+                        onMeasurementChanged = { viewModel.updateEditMeasurement(it) },
+                        onValueChanged = { index, value -> viewModel.updateEditValue(index, value) },
+                        onMealTimeChanged = { viewModel.updateEditMealTime(it) },
+                        onActivityChanged = { viewModel.updateEditActivity(it) },
+                        onNoteChanged = { viewModel.updateEditNote(it) },
+                        onReset = { viewModel.startEditingRecord(selectedRecordForEdit) },
+                        onSaveRecord = { viewModel.saveEditRecord(selectedRecordForEdit.dateTimeText) },
+                        onDeleteRecord = { viewModel.deleteRecord(selectedRecordForEdit) },
+                        isEditMode = true,
+                        thresholdMode = settings.thresholdMode
                     )
                 }
             }

@@ -1,6 +1,8 @@
 package com.knz.diatracker
 
 import android.content.Context
+import android.content.Intent
+import androidx.core.content.FileProvider
 import android.graphics.pdf.PdfDocument
 import android.graphics.Paint
 import android.graphics.Color as AndroidColor
@@ -29,153 +31,28 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.knz.diatracker.data.AppDatabase
 import com.knz.diatracker.data.DiabetesRecord
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
-enum class StatsPeriod(val title: String) {
-    DAY("День"),
-    WEEK("Неделя"),
-    MONTH("Месяц"),
-    ALL("Все")
-}
-
-fun parseRecordTimestamp(dateTimeText: String?, fallbackTimestamp: Long): Long {
-    if (dateTimeText.isNullOrBlank()) return fallbackTimestamp
-
-    val patterns = listOf(
-        Pair("d MMMM yyyy HH:mm", Locale("ru")),
-        Pair("d MMMM yyyy", Locale("ru")),
-        Pair("dd.MM.yyyy HH:mm", Locale.getDefault()),
-        Pair("dd.MM.yyyy HH-mm", Locale.getDefault()),
-        Pair("yyyy-MM-dd HH:mm", Locale.getDefault()),
-        Pair("dd.MM.yyyy", Locale.getDefault()),
-        Pair("yyyy-MM-dd", Locale.getDefault())
-    )
-
-    for ((pattern, locale) in patterns) {
-        try {
-            val formatter = SimpleDateFormat(pattern, locale).apply {
-                isLenient = false
-            }
-            val date = formatter.parse(dateTimeText)
-            if (date != null) return date.time
-        } catch (_: Exception) {}
-    }
-    return fallbackTimestamp
-}
-
 @Composable
-fun StatsScreen(settings: UserSettings) {
+fun StatsScreen(viewModel: MainViewModel = viewModel()) {
     val context = LocalContext.current
-    val database = remember { AppDatabase.getDatabase(context) }
-    val dao = database.diabetesDao()
+    val statsState by viewModel.statsUiState.collectAsState()
 
-    val allRecords by dao.getAllRecords().collectAsState(initial = emptyList())
+    val selectedPeriod = statsState.selectedPeriod
+    val chartTypes = statsState.availableMetrics
+    val currentMetricIndex = statsState.currentMetricIndex
+    val currentMetric = statsState.currentMetric
+    val records = statsState.periodRecords
+    val metricValues = statsState.metricValues
 
-    var selectedPeriod by remember { mutableStateOf(StatsPeriod.WEEK) }
-
-    val records = remember(allRecords, selectedPeriod) {
-        if (allRecords.isEmpty()) return@remember emptyList<DiabetesRecord>()
-
-        val sortedAll = allRecords.sortedBy { parseRecordTimestamp(it.dateTimeText, it.timestamp) }
-        val latestRecordTime = parseRecordTimestamp(sortedAll.last().dateTimeText, sortedAll.last().timestamp)
-        val calendar = Calendar.getInstance()
-
-        when (selectedPeriod) {
-            StatsPeriod.DAY -> {
-                calendar.timeInMillis = latestRecordTime
-                calendar.set(Calendar.HOUR_OF_DAY, 0)
-                calendar.set(Calendar.MINUTE, 0)
-                calendar.set(Calendar.SECOND, 0)
-                calendar.set(Calendar.MILLISECOND, 0)
-                val startOfDay = calendar.timeInMillis
-
-                calendar.set(Calendar.HOUR_OF_DAY, 23)
-                calendar.set(Calendar.MINUTE, 59)
-                calendar.set(Calendar.SECOND, 59)
-                calendar.set(Calendar.MILLISECOND, 999)
-                val endOfDay = calendar.timeInMillis
-
-                sortedAll.filter { record ->
-                    val recordTime = parseRecordTimestamp(record.dateTimeText, record.timestamp)
-                    recordTime in startOfDay..endOfDay
-                }
-            }
-            StatsPeriod.WEEK -> {
-                calendar.timeInMillis = latestRecordTime
-                calendar.add(Calendar.DAY_OF_YEAR, -7)
-                val startOfWeek = calendar.timeInMillis
-
-                sortedAll.filter { record ->
-                    val recordTime = parseRecordTimestamp(record.dateTimeText, record.timestamp)
-                    recordTime in startOfWeek..(latestRecordTime + 86400000L)
-                }
-            }
-            StatsPeriod.MONTH -> {
-                calendar.timeInMillis = latestRecordTime
-                calendar.add(Calendar.MONTH, -1)
-                val startOfMonth = calendar.timeInMillis
-
-                sortedAll.filter { record ->
-                    val recordTime = parseRecordTimestamp(record.dateTimeText, record.timestamp)
-                    recordTime in startOfMonth..(latestRecordTime + 86400000L)
-                }
-            }
-            StatsPeriod.ALL -> sortedAll
-        }
-    }
-
-    val chartTypes = remember(settings) {
-        mutableListOf<ChartMetric>().apply {
-            add(ChartMetric("Уровень сахара", "ммоль/л") { it.bloodSugar })
-            add(ChartMetric("Хлебные единицы (ХЕ)", "ХЕ") { it.breadUnits })
-
-            if (settings.general) {
-                add(ChartMetric("Инсулин", "ед") { it.generalInsulin })
-            }
-            if (settings.short) {
-                add(ChartMetric("Короткий инсулин", "ед") { it.shortInsulin })
-            }
-            if (settings.long) {
-                add(ChartMetric("Продленный инсулин", "ед") { it.longInsulin })
-            }
-            if (settings.mixed) {
-                add(ChartMetric("Смешанный инсулин", "ед") { it.mixedInsulin })
-            }
-
-            add(ChartMetric("Вес", "кг") { it.weight })
-            add(ChartMetric("Физическая активность", "мин") { it.activityMinutes })
-        }
-    }
-
-    var currentMetricIndex by remember { mutableStateOf(0) }
-    if (currentMetricIndex >= chartTypes.size) {
-        currentMetricIndex = 0
-    }
-    val currentMetric = chartTypes[currentMetricIndex]
-    var showExportDialog by remember { mutableStateOf(false) }
-
-    val totalRecords = records.size
-    val avgBloodSugar = if (records.isNotEmpty()) {
-        records.mapNotNull { it.bloodSugar }.let { if (it.isNotEmpty()) it.average().toFloat() else 0f }
-    } else 0f
-
-    val totalBreadUnits = records.mapNotNull { it.breadUnits }.sum()
-    val totalGeneralInsulin = records.mapNotNull { it.generalInsulin }.sum()
-    val totalShortInsulin = records.mapNotNull { it.shortInsulin }.sum()
-    val totalLongInsulin = records.mapNotNull { it.longInsulin }.sum()
-    val totalMixedInsulin = records.mapNotNull { it.mixedInsulin }.sum()
-    val avgWeight = if (records.isNotEmpty()) {
-        records.mapNotNull { it.weight }.let { if (it.isNotEmpty()) it.average().toFloat() else 0f }
-    } else 0f
-    val totalActivityMinutes = records.mapNotNull { it.activityMinutes }.sum()
+    val showExportDialog = statsState.showExportDialog
 
     Column(
         modifier = Modifier
@@ -203,7 +80,7 @@ fun StatsScreen(settings: UserSettings) {
             StatsPeriod.values().forEach { period ->
                 val isSelected = selectedPeriod == period
                 Button(
-                    onClick = { selectedPeriod = period },
+                    onClick = { viewModel.setStatsPeriod(period) },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isSelected) Color.White else Color(0xFF4c5e8b)
                     ),
@@ -239,31 +116,28 @@ fun StatsScreen(settings: UserSettings) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     IconButton(onClick = {
-                        currentMetricIndex = if (currentMetricIndex > 0) currentMetricIndex - 1 else chartTypes.size - 1
+                        val nextIndex = if (currentMetricIndex > 0) currentMetricIndex - 1 else chartTypes.size - 1
+                        viewModel.setMetricIndex(nextIndex)
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = Color(0xFF2c3e6b))
                     }
 
                     Text(
-                        text = currentMetric.title,
+                        text = currentMetric?.title ?: "",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2c3e6b)
                     )
 
                     IconButton(onClick = {
-                        currentMetricIndex = if (currentMetricIndex < chartTypes.size - 1) currentMetricIndex + 1 else 0
+                        val nextIndex = if (currentMetricIndex < chartTypes.size - 1) currentMetricIndex + 1 else 0
+                        viewModel.setMetricIndex(nextIndex)
                     }) {
                         Icon(Icons.Default.ArrowForward, contentDescription = "Вперед", tint = Color(0xFF2c3e6b))
                     }
                 }
 
                 Spacer(Modifier.height(10.dp))
-
-                val sortedRecords = records.sortedBy { parseRecordTimestamp(it.dateTimeText, it.timestamp) }
-                val metricValues = sortedRecords.mapNotNull { record ->
-                    currentMetric.extractor(record)?.let { valPair -> record to valPair }
-                }.sortedBy { parseRecordTimestamp(it.first.dateTimeText, it.first.timestamp) }
 
                 if (metricValues.size < 2) {
                     Box(
@@ -277,7 +151,7 @@ fun StatsScreen(settings: UserSettings) {
                             textAlign = TextAlign.Center
                         )
                     }
-                } else {
+                } else if (currentMetric != null) {
                     MetricLineChart(data = metricValues, unit = currentMetric.unit, period = selectedPeriod)
                 }
             }
@@ -302,25 +176,25 @@ fun StatsScreen(settings: UserSettings) {
                     color = Color(0xFF2c3e6b)
                 )
                 Spacer(Modifier.height(4.dp))
-                StatRowItem("Всего записей:", "$totalRecords")
-                StatRowItem("Средний сахар:", String.format(Locale.US, "%.1f ммоль/л", avgBloodSugar))
-                StatRowItem("Всего ХЕ:", String.format(Locale.US, "%.1f ХЕ", totalBreadUnits))
+                StatRowItem("Всего записей:", "${statsState.totalRecords}")
+                StatRowItem("Средний сахар:", String.format(Locale.US, "%.1f ммоль/л", statsState.avgBloodSugar))
+                StatRowItem("Всего ХЕ:", String.format(Locale.US, "%.1f ХЕ", statsState.totalBreadUnits))
 
-                if (settings.general) {
-                    StatRowItem("Инсулин:", String.format(Locale.US, "%.1f ед", totalGeneralInsulin))
+                if (statsState.totalGeneralInsulin > 0f || chartTypes.any { it.title == "Инсулин" }) {
+                    StatRowItem("Инсулин:", String.format(Locale.US, "%.1f ед", statsState.totalGeneralInsulin))
                 }
-                if (settings.short) {
-                    StatRowItem("Короткий инсулин:", String.format(Locale.US, "%.1f ед", totalShortInsulin))
+                if (statsState.totalShortInsulin > 0f || chartTypes.any { it.title == "Короткий инсулин" }) {
+                    StatRowItem("Короткий инсулин:", String.format(Locale.US, "%.1f ед", statsState.totalShortInsulin))
                 }
-                if (settings.long) {
-                    StatRowItem("Продленный инсулин:", String.format(Locale.US, "%.1f ед", totalLongInsulin))
+                if (statsState.totalLongInsulin > 0f || chartTypes.any { it.title == "Продленный инсулин" }) {
+                    StatRowItem("Продленный инсулин:", String.format(Locale.US, "%.1f ед", statsState.totalLongInsulin))
                 }
-                if (settings.mixed) {
-                    StatRowItem("Смешанный инсулин:", String.format(Locale.US, "%.1f ед", totalMixedInsulin))
+                if (statsState.totalMixedInsulin > 0f || chartTypes.any { it.title == "Смешанный инсулин" }) {
+                    StatRowItem("Смешанный инсулин:", String.format(Locale.US, "%.1f ед", statsState.totalMixedInsulin))
                 }
 
-                StatRowItem("Средний вес:", String.format(Locale.US, "%.1f кг", avgWeight))
-                StatRowItem("Активность (всего):", "%.0f мин".format(totalActivityMinutes))
+                StatRowItem("Средний вес:", String.format(Locale.US, "%.1f кг", statsState.avgWeight))
+                StatRowItem("Активность (всего):", "%.0f мин".format(statsState.totalActivityMinutes))
             }
         }
 
@@ -331,7 +205,7 @@ fun StatsScreen(settings: UserSettings) {
                 if (records.isEmpty()) {
                     Toast.makeText(context, "Нет данных за выбранный период для экспорта", Toast.LENGTH_SHORT).show()
                 } else {
-                    showExportDialog = true
+                    viewModel.setShowExportDialog(true)
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4c5e8b)),
@@ -347,7 +221,7 @@ fun StatsScreen(settings: UserSettings) {
     }
 
     if (showExportDialog) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showExportDialog = false }) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { viewModel.setShowExportDialog(false) }) {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -365,7 +239,7 @@ fun StatsScreen(settings: UserSettings) {
 
                     Button(
                         onClick = {
-                            showExportDialog = false
+                            viewModel.setShowExportDialog(false)
                             generatePdfReport(context, records, selectedPeriod.title)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2c3e6b)),
@@ -377,7 +251,7 @@ fun StatsScreen(settings: UserSettings) {
 
                     Button(
                         onClick = {
-                            showExportDialog = false
+                            viewModel.setShowExportDialog(false)
                             exportToExcel(context, records, selectedPeriod.title)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2c3e6b)),
@@ -389,7 +263,7 @@ fun StatsScreen(settings: UserSettings) {
 
                     Button(
                         onClick = {
-                            showExportDialog = false
+                            viewModel.setShowExportDialog(false)
                             exportToCsv(context, records, selectedPeriod.title)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4c5e8b)),
@@ -399,7 +273,7 @@ fun StatsScreen(settings: UserSettings) {
                         Text("Сохранить в CSV", color = Color.White)
                     }
 
-                    TextButton(onClick = { showExportDialog = false }) {
+                    TextButton(onClick = { viewModel.setShowExportDialog(false) }) {
                         Text("Отмена", color = Color.Gray)
                     }
                 }
@@ -407,12 +281,6 @@ fun StatsScreen(settings: UserSettings) {
         }
     }
 }
-
-data class ChartMetric(
-    val title: String,
-    val unit: String,
-    val extractor: (DiabetesRecord) -> Float?
-)
 
 @Composable
 fun MetricLineChart(data: List<Pair<DiabetesRecord, Float>>, unit: String, period: StatsPeriod) {
@@ -535,6 +403,11 @@ fun MetricLineChart(data: List<Pair<DiabetesRecord, Float>>, unit: String, perio
 }
 
 @Composable
+fun History() {
+
+}
+
+@Composable
 fun StatRowItem(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -542,6 +415,22 @@ fun StatRowItem(label: String, value: String) {
     ) {
         Text(text = label, fontSize = 15.sp, color = Color.DarkGray, fontWeight = FontWeight.Medium)
         Text(text = value, fontSize = 15.sp, color = Color(0xFF2c3e6b), fontWeight = FontWeight.Bold)
+    }
+}
+
+fun shareFile(context: Context, file: File, mimeType: String) {
+    try {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(intent, "Поделиться отчетом")
+        context.startActivity(chooser)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(context, "Не удалось открыть меню поделиться: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -617,6 +506,7 @@ fun generatePdfReport(context: Context, records: List<DiabetesRecord>, periodTit
         pdfDocument.writeTo(FileOutputStream(file))
         pdfDocument.close()
         Toast.makeText(context, "PDF сохранен в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        shareFile(context, file, "application/pdf")
     } catch (e: Exception) {
         e.printStackTrace()
         Toast.makeText(context, "Ошибка сохранения PDF: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -659,6 +549,7 @@ fun exportToExcel(context: Context, records: List<DiabetesRecord>, periodTitle: 
 
         file.writeText(htmlContent)
         Toast.makeText(context, "Excel сохранен в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        shareFile(context, file, "application/vnd.ms-excel")
     } catch (e: Exception) {
         e.printStackTrace()
         Toast.makeText(context, "Ошибка экспорта в Excel: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -694,6 +585,7 @@ fun exportToCsv(context: Context, records: List<DiabetesRecord>, periodTitle: St
         }
 
         Toast.makeText(context, "CSV сохранен в: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        shareFile(context, file, "text/csv")
     } catch (e: Exception) {
         e.printStackTrace()
         Toast.makeText(context, "Ошибка экспорта в CSV: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
