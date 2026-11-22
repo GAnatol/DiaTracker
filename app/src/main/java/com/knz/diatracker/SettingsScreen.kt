@@ -216,7 +216,7 @@ fun SettingsScreen(
                             )
 
                             Text(
-                                text = "Версия 0.8.1",
+                                text = "Версия 0.8.2",
                                 fontSize = 14.sp,
                                 color = Color.Gray
                             )

@@ -1,6 +1,5 @@
 package com.knz.diatracker
 
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -19,14 +18,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,7 +38,9 @@ data class MeasurementType(
     val hasDecimal: Boolean
 )
 
-private fun formatValue(value: Float, hasDecimal: Boolean): String {
+private val SoftGray = Color(0xFFB0B0B0)
+
+private fun formatValue(value: Float, hasDecimal: Boolean, isInitial: Boolean): String {
     if (!hasDecimal) return value.roundToInt().toString()
 
     val totalTenths = (value * 10f).roundToInt()
@@ -52,7 +50,7 @@ private fun formatValue(value: Float, hasDecimal: Boolean): String {
     val dec = abs(totalTenths % 10)
 
     return if (dec == 0) {
-        whole.toString()
+        if (isInitial) "0.0" else whole.toString()
     } else {
         "$whole.$dec"
     }
@@ -86,13 +84,24 @@ fun Sliders(
     val currentType = measurementTypes[safeIndex]
 
     val initialRounded = if (currentType.hasDecimal) {
-        roundToTenths(currentValue.coerceIn(currentType.minWhole, currentType.maxWhole))
+        roundToTenths(currentValue)
     } else {
-        currentValue.coerceIn(currentType.minWhole, currentType.maxWhole).roundToInt().toFloat()
+        currentValue.roundToInt().toFloat()
     }
 
     var internalValue by remember(safeIndex, resetTrigger) {
         mutableFloatStateOf(initialRounded)
+    }
+
+    var isInitial by remember(safeIndex, resetTrigger) {
+        mutableStateOf(currentValue == 0f)
+    }
+
+    LaunchedEffect(currentValue, safeIndex, resetTrigger) {
+        if (abs(internalValue - currentValue) > 0.05f) {
+            internalValue = currentValue
+            isInitial = (currentValue == 0f)
+        }
     }
 
     var isFieldFocused by remember { mutableStateOf(false) }
@@ -105,7 +114,6 @@ fun Sliders(
     }
 
     val wholePart = internalValue.toInt().toFloat()
-        .coerceIn(currentType.minWhole, currentType.maxWhole)
 
     val decimalPart = if (currentType.hasDecimal) {
         (((internalValue - wholePart) * 10f).roundToInt() % 10).toFloat().coerceIn(0f, 9f)
@@ -114,34 +122,22 @@ fun Sliders(
     }
 
     var textState by remember(safeIndex, resetTrigger) {
-        val formatted = formatValue(internalValue, currentType.hasDecimal)
+        val formatted = formatValue(internalValue, currentType.hasDecimal, isInitial)
         mutableStateOf(TextFieldValue(text = formatted, selection = TextRange(formatted.length)))
     }
 
     fun syncTextFromValue(value: Float) {
         if (isFieldFocused) return
-        val formatted = formatValue(value, currentType.hasDecimal)
+        val formatted = formatValue(value, currentType.hasDecimal, isInitial)
         if (textState.text != formatted) {
             textState = TextFieldValue(text = formatted, selection = TextRange(formatted.length))
         }
     }
 
-    fun handleThresholdFinished(value: Float) {
-        if (thresholdMode == ThresholdKeyboardMode.AUTO_KEYBOARD && value >= currentType.maxWhole) {
-            if (internalValue != currentType.maxWhole) {
-                internalValue = currentType.maxWhole
-                syncTextFromValue(currentType.maxWhole)
-                onValueChanged(currentType.maxWhole)
-            }
-            try {
-                focusRequester.requestFocus()
-            } catch (_: Exception) {
-            }
-        }
-    }
+    var wasAtMax by remember(safeIndex) { mutableStateOf(false) }
 
     fun updateValueFromSlider(newVal: Float, commitExternal: Boolean = false) {
-        val clamped = newVal.coerceIn(currentType.minWhole, currentType.maxWhole)
+        val clamped = newVal.coerceAtLeast(0f)
         val roundVal = if (currentType.hasDecimal) {
             roundToTenths(clamped)
         } else {
@@ -155,7 +151,23 @@ fun Sliders(
 
         if (commitExternal) {
             onValueChanged(internalValue)
-            handleThresholdFinished(internalValue)
+        }
+
+        val isAtMax = roundVal >= currentType.maxWhole
+        if (isAtMax != wasAtMax) {
+            wasAtMax = isAtMax
+            if (isAtMax) {
+                if (thresholdMode == ThresholdKeyboardMode.AUTO_KEYBOARD && !isFieldFocused) {
+                    try {
+                        focusRequester.requestFocus()
+                    } catch (_: Exception) {
+                    }
+                }
+            } else {
+                if (isFieldFocused) {
+                    focusManager.clearFocus()
+                }
+            }
         }
     }
 
@@ -164,13 +176,12 @@ fun Sliders(
         activeTrackColor = Color(0xFF2c3e6b)
     )
 
+    val textColor = if (internalValue == 0f && isInitial && !isFieldFocused) SoftGray else Color.Black
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { focusManager.clearFocus() })
-            },
+            .padding(horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
@@ -187,17 +198,19 @@ fun Sliders(
                     val filtered = newValue.text.replace(',', '.').trim()
                     if (filtered.isEmpty()) {
                         internalValue = 0f
+                        isInitial = true
                         onValueChanged(0f)
                     } else {
                         val parsed = filtered.toFloatOrNull()
                         if (parsed != null) {
-                            val valid = parsed.coerceIn(currentType.minWhole, currentType.maxWhole)
+                            val valid = parsed.coerceAtLeast(0f)
                             val updated = if (currentType.hasDecimal) {
                                 roundToTenths(valid)
                             } else {
                                 valid.roundToInt().toFloat()
                             }
                             internalValue = updated
+                            isInitial = false
                             onValueChanged(updated)
                         }
                     }
@@ -213,7 +226,7 @@ fun Sliders(
                 textStyle = TextStyle(
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
+                    color = textColor,
                     textAlign = TextAlign.Center
                 ),
                 modifier = Modifier
@@ -239,16 +252,13 @@ fun Sliders(
             modifier = Modifier.fillMaxWidth()
         ) {
             Slider(
-                value = wholePart,
+                value = wholePart.coerceIn(currentType.minWhole, currentType.maxWhole),
                 onValueChange = { newWhole ->
                     if (isFieldFocused) {
                         focusManager.clearFocus()
                     }
-                    val updated = if (newWhole >= currentType.maxWhole || !currentType.hasDecimal) {
-                        newWhole
-                    } else {
-                        (newWhole + (decimalPart / 10f)).coerceAtMost(currentType.maxWhole)
-                    }
+                    isInitial = false
+                    val updated = newWhole + (decimalPart / 10f)
                     updateValueFromSlider(updated, commitExternal = false)
                 },
                 onValueChangeFinished = {
@@ -300,16 +310,14 @@ fun Sliders(
                     if (isFieldFocused) {
                         focusManager.clearFocus()
                     }
-                    val updated = if (wholePart >= currentType.maxWhole) {
-                        currentType.maxWhole
-                    } else {
-                        (wholePart + (newDec / 10f)).coerceAtMost(currentType.maxWhole)
-                    }
+                    isInitial = false
+                    val updated = wholePart + (newDec / 10f)
                     updateValueFromSlider(updated, commitExternal = false)
                 },
                 onValueChangeFinished = {
                     updateValueFromSlider(internalValue, commitExternal = true)
                 },
+                enabled = true,
                 valueRange = 0f..9f,
                 steps = 8,
                 colors = sliderColors

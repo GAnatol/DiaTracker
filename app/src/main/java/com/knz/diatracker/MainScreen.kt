@@ -5,9 +5,9 @@ import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,7 +21,15 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.knz.diatracker.data.DiabetesRecord
 import java.util.Calendar
-import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
+private fun formatOneDec(value: Float): String {
+    val totalTenths = (value * 10f).roundToInt()
+    val whole = totalTenths / 10
+    val dec = abs(totalTenths % 10)
+    return if (dec == 0) "$whole" else "$whole.$dec"
+}
 
 @Composable
 fun MainScreen(
@@ -91,98 +99,115 @@ fun MainScreen(
         }
     }
 
+    val scrollState = rememberScrollState()
+
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Gray)
-                .padding(horizontal = 13.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(15.dp)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item {
-                Spacer(Modifier.height(36.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Мой дневник",
-                        modifier = Modifier.weight(1f),
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Start
+            Spacer(Modifier.height(36.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Мой дневник",
+                    modifier = Modifier.weight(1f),
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start
+                )
+            }
+
+            Spacer(Modifier.height(15.dp))
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(15.dp),
+                color = Color.White,
+            ) {
+                Box(modifier = Modifier.padding(vertical = 10.dp)) {
+                    GlucoseRecordScreen(
+                        showGeneralInsulin = showGeneralInsulin,
+                        showShortInsulin = showShortInsulin,
+                        showLongInsulin = showLongInsulin,
+                        showMixedInsulin = showMixedInsulin,
+                        dateTimeText = formattedDateTime,
+                        onDateTimeClick = openDateTimePicker,
+                        inputState = draftState,
+                        onMeasurementChanged = viewModel::updateDraftMeasurement,
+                        onValueChanged = viewModel::updateDraftValue,
+                        onMealTimeChanged = viewModel::updateDraftMealTime,
+                        onActivityChanged = viewModel::updateDraftActivity,
+                        onNoteChanged = viewModel::updateDraftNote,
+                        onReset = viewModel::resetDraftInputState,
+                        onSaveRecord = { viewModel.saveDraftRecord(formattedDateTime) },
+                        isEditMode = false,
+                        thresholdMode = settings.thresholdMode
                     )
                 }
             }
 
-            item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight(),
-                    shape = RoundedCornerShape(15.dp),
-                    color = Color.White,
-                ) {
-                    Box(modifier = Modifier.padding(vertical = 10.dp)) {
-                        GlucoseRecordScreen(
-                            showGeneralInsulin = showGeneralInsulin,
-                            showShortInsulin = showShortInsulin,
-                            showLongInsulin = showLongInsulin,
-                            showMixedInsulin = showMixedInsulin,
-                            dateTimeText = formattedDateTime,
-                            onDateTimeClick = openDateTimePicker,
-                            inputState = draftState,
-                            onMeasurementChanged = viewModel::updateDraftMeasurement,
-                            onValueChanged = viewModel::updateDraftValue,
-                            onMealTimeChanged = viewModel::updateDraftMealTime,
-                            onActivityChanged = viewModel::updateDraftActivity,
-                            onNoteChanged = viewModel::updateDraftNote,
-                            onReset = viewModel::resetDraftInputState,
-                            onSaveRecord = { viewModel.saveDraftRecord(formattedDateTime) },
-                            isEditMode = false,
-                            thresholdMode = settings.thresholdMode
-                        )
-                    }
-                }
-            }
+            Spacer(Modifier.height(20.dp))
 
-            item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 3.dp)
+            ) {
                 Text(
                     text = "История записей",
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 18.sp,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-            }
 
-            if (recordsList.isEmpty()) {
-                item {
+                if (recordsList.isEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth().height(200.dp),
                         shape = RoundedCornerShape(15.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White)
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("История пуста", color = Color.Gray, fontSize = 14.sp)
                         }
                     }
-                }
-            } else {
-                items(recordsList, key = { it.id }) { record ->
-                    RecordItemRow(
-                        record = record,
-                        onClick = { viewModel.startEditingRecord(record) }
-                    )
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            recordsList.forEach { record ->
+                                RecordItemRow(
+                                    record = record,
+                                    onClick = { viewModel.startEditingRecord(record) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            item {
-                Spacer(Modifier.height(30.dp))
-            }
+            Spacer(Modifier.height(40.dp))
         }
     }
 
@@ -247,8 +272,7 @@ private fun RecordItemRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF5F6F8),
-        shadowElevation = 1.dp
+        color = Color(0xFFF5F6F8)
     ) {
         Column(
             modifier = Modifier
@@ -280,49 +304,49 @@ private fun RecordItemRow(
 
             record.bloodSugar?.let {
                 Text(
-                    text = "Сахар: ${String.format(Locale.US, "%.1f", it)} ммоль/л",
+                    text = "Сахар: ${formatOneDec(it)} ммоль/л",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
             }
             record.breadUnits?.let {
                 Text(
-                    text = "ХЕ: ${String.format(Locale.US, "%.1f", it)}",
+                    text = "ХЕ: ${formatOneDec(it)}",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
             }
             record.generalInsulin?.let {
                 Text(
-                    text = "Инсулин: ${String.format(Locale.US, "%.1f", it)} ед",
+                    text = "Инсулин: ${formatOneDec(it)} ед",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
             }
             record.shortInsulin?.let {
                 Text(
-                    text = "Инсулин кор.: ${String.format(Locale.US, "%.1f", it)} ед",
+                    text = "Инсулин кор.: ${formatOneDec(it)} ед",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
             }
             record.longInsulin?.let {
                 Text(
-                    text = "Инсулин прод.: ${String.format(Locale.US, "%.1f", it)} ед",
+                    text = "Инсулин прод.: ${formatOneDec(it)} ед",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
             }
             record.mixedInsulin?.let {
                 Text(
-                    text = "Инсулин смеш.: ${String.format(Locale.US, "%.1f", it)} ед",
+                    text = "Инсулин смеш.: ${formatOneDec(it)} ед",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
             }
             record.weight?.let {
                 Text(
-                    text = "Вес: ${String.format(Locale.US, "%.1f", it)} кг",
+                    text = "Вес: ${formatOneDec(it)} кг",
                     fontSize = 14.sp,
                     color = Color.DarkGray
                 )
